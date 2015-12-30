@@ -97,9 +97,6 @@ func GetLibrary() map[string]Spec {
 		ValueGet(),
 		ValueSet(),
 
-		// server
-		FromRequest(),
-
 		// list
 		listGet(),
 		listSet(),

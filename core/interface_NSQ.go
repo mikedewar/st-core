@@ -11,7 +11,7 @@ import (
 func NSQInterface() SourceSpec {
 	return SourceSpec{
 		Name: "stream",
-		Type: STREAM,
+		Type: NSQCLIENT,
 		New:  NewNSQ,
 	}
 }
@@ -27,7 +27,7 @@ type NSQ struct {
 }
 
 func (s NSQ) GetType() SourceType {
-	return STREAM
+	return NSQCLIENT
 }
 
 func (s *NSQ) SetSourceParameter(name, value string) {
@@ -119,7 +119,7 @@ func NSQReceive() Spec {
 		Outputs: []Pin{
 			Pin{"out", STRING},
 		},
-		Source: STREAM,
+		Source: NSQCLIENT,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
 			stream := s.(*NSQ)
 			select {
