@@ -78,7 +78,7 @@ func (s *SourceType) UnmarshalJSON(data []byte) error {
 		*s = SourceType(NONE)
 	case `"key_value"`:
 		*s = SourceType(KEY_VALUE)
-	case `"nsq"`:
+	case `"NSQ"`:
 		*s = SourceType(NSQCLIENT)
 	case `"wsClient"`:
 		*s = SourceType(WSCLIENT)
@@ -101,7 +101,7 @@ func (s SourceType) MarshalJSON() ([]byte, error) {
 	case KEY_VALUE:
 		return []byte(`"key_value"`), nil
 	case NSQCLIENT:
-		return []byte(`"nsq"`), nil
+		return []byte(`"NSQ"`), nil
 	case WSCLIENT:
 		return []byte(`"wsClient"`), nil
 	case LIST:
