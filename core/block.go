@@ -326,7 +326,7 @@ func (b *Block) process() Interrupt {
 		s = b.routing.Source
 		store, ok := s.(Store)
 		if !ok {
-			log.Fatal(store)
+			log.Fatal(s)
 		}
 		store.Lock()
 	}
@@ -342,7 +342,7 @@ func (b *Block) process() Interrupt {
 	if s != nil {
 		store, ok := s.(Store)
 		if !ok {
-			log.Fatal(store)
+			log.Fatal(s)
 		}
 		store.Unlock()
 	}
