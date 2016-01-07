@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 
 	"github.com/bitly/go-nsq"
 )
@@ -62,7 +63,7 @@ func (s NSQ) Serve() {
 	for {
 		select {
 		case conf := <-s.connectChan:
-			reader, err := nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
+			reader, err = nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
 			if err != nil {
 				select {
 				case conf.errChan <- NewError("NSQ failed to create Consumer with error:" + err.Error()):
@@ -186,7 +187,8 @@ func getRandomNode(lookupdAddr string) (string, error) {
 	if nProducers <= 0 {
 		log.Fatal(errors.New("found no NSQ daemons"))
 	}
-	return n.Data.Producers[rand.Intn(nProducers)].Broadcast_address, nil
+	pr := n.Data.Producers[rand.Intn(nProducers)]
+	return pr.Broadcast_address + ":" + strconv.Itoa(pr.Tcp_port), nil
 }
 
 func NSQConnect() Spec {
