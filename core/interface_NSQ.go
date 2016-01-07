@@ -199,7 +199,7 @@ func NSQConnect() Spec {
 // OutPin 0: received message
 func NSQReceive() Spec {
 	return Spec{
-		Name: "receive",
+		Name: "NSQReceive",
 		Outputs: []Pin{
 			Pin{"out", STRING},
 		},
