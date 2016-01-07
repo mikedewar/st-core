@@ -72,6 +72,7 @@ func (s NSQ) Serve() {
 				case conf.errChan <- NewError("NSQ failed to create Consumer with error:" + err.Error()):
 				default:
 				}
+				continue
 			}
 			reader.AddHandler(s)
 			err = reader.ConnectToNSQLookupd(conf.lookupAddr)
