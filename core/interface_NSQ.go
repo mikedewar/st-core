@@ -60,6 +60,7 @@ func NewNSQ() Source {
 func (s NSQ) Serve() {
 	var reader *nsq.Consumer
 	var writer *nsq.Producer
+	var err error
 	for {
 		select {
 		case conf := <-s.connectChan:
