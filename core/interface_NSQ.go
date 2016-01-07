@@ -133,6 +133,14 @@ func (s NSQ) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
 	}
 }
 
+func (s NSQ) SendMessage(msg string) *stcoreError {
+	// send message
+	m := NSQMsg{msg, make(chan *stcoreError)}
+	go func() { s.sendChan <- m }()
+	err := <-m.errChan
+	return err
+}
+
 func (s NSQ) Stop() {
 	m := make(chan error)
 	s.quit <- m
@@ -274,6 +282,37 @@ func NSQReceive() Spec {
 				return f
 			}
 			out[0] = string(msg)
+			return nil
+		},
+	}
+}
+
+func NSQSend() Spec {
+	return Spec{
+		Name: "NSQSend",
+		Inputs: []Pin{
+			Pin{"msg", STRING},
+		},
+		Outputs: []Pin{
+			Pin{"sent", BOOLEAN},
+		},
+		Source: NSQCLIENT,
+		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
+			nsq := s.(*NSQ)
+
+			msg, ok := in[0].(string)
+			if !ok {
+				out[0] = NewError("NSQSend requires string msg")
+				return nil
+			}
+
+			err := nsq.SendMessage(msg)
+			if err != nil {
+				out[0] = err
+				return nil
+			}
+
+			out[0] = true
 			return nil
 		},
 	}
