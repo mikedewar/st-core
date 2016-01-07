@@ -192,7 +192,6 @@ func getRandomNode(lookupdAddr string) (string, error) {
 	if nProducers <= 0 {
 		log.Fatal(errors.New("found no NSQ daemons"))
 	}
-	log.Prinltn(n.Data)
 	return n.Data.Producers[rand.Intn(nProducers)].Broadcast_address, nil
 }
 
