@@ -1,15 +1,19 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"log"
+	"math/rand"
+	"net/http"
 
 	"github.com/bitly/go-nsq"
 )
 
 func NSQInterface() SourceSpec {
 	return SourceSpec{
-		Name: "NSQ",
+		Name: "NSQClient",
 		Type: NSQCLIENT,
 		New:  NewNSQ,
 	}
@@ -17,6 +21,7 @@ func NSQInterface() SourceSpec {
 
 type NSQ struct {
 	connectChan chan NSQConf
+	topic       string
 	sendChan    chan NSQMsg
 	fromNSQ     chan string
 	subscribe   chan chan string
@@ -48,18 +53,12 @@ func NewNSQ() Source {
 		connectChan: make(chan NSQConf),
 		sendChan:    make(chan NSQMsg),
 		fromNSQ:     make(chan string),
-		subscribe:   make(chan chan string),
-		unsubscribe: make(chan chan string),
-		subscribers: make(map[chan string]struct{}),
 	}
 }
 
-/* config
-
-*/
-
 func (s NSQ) Serve() {
 	var reader *nsq.Consumer
+	var writer *nsq.Producer
 	for {
 		select {
 		case conf := <-s.connectChan:
@@ -78,42 +77,58 @@ func (s NSQ) Serve() {
 				default:
 				}
 			}
-		case _ = <-s.sendChan:
-		case msg := <-s.fromNSQ:
-			for c, _ := range s.subscribers {
-				c <- msg
+			prodAddr, err := getRandomNode(conf.lookupAddr)
+			if err != nil {
+				select {
+				case conf.errChan <- NewError("NSQ connect failed with:" + err.Error()):
+				default:
+				}
 			}
-		case c := <-s.subscribe:
-			s.subscribers[c] = struct{}{}
-		case c := <-s.unsubscribe:
-			delete(s.subscribers, c)
+			log.Println("using", prodAddr, "to publish to")
+			writer, err = nsq.NewProducer(prodAddr, conf.conf)
+			if err != nil {
+				select {
+				case conf.errChan <- NewError("NSQ connect failed with:" + err.Error()):
+				default:
+				}
+			}
+			s.topic = conf.topic
+		case msg := <-s.sendChan:
+			if writer == nil {
+				msg.errChan <- NewError("NSQ is not connected; cannot send.")
+				continue
+			}
+			err := writer.Publish(s.topic, []byte(msg.msg))
+			if err != nil {
+				msg.errChan <- NewError("NSQ publish failed with: " + err.Error())
+			} else {
+				msg.errChan <- nil
+			}
 		case <-s.quit:
 			reader.Stop()
 			<-reader.StopChan // this blocks until the reader is definitely dead
 			// TODO have some sort of timeout here and return with error maybe?
 			// don't forget the object coming through s.quite is an option error channel
+			writer.Stop()
 		}
 	}
 }
 
 func (s NSQ) HandleMessage(message *nsq.Message) error {
+	// this blocks until ReceiveMessage is called
 	s.fromNSQ <- string(message.Body)
 	return nil
 }
 
 func (s NSQ) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
 	// receives message
-	c := make(chan string, 10)
-	s.subscribe <- c
 	select {
-	case msg, ok := <-c:
+	case msg, ok := <-s.fromNSQ:
 		if !ok {
 			return "", nil, errors.New("NSQ connection has closed")
 		}
-		s.unsubscribe <- c
 		return msg, nil, nil
 	case f := <-i:
-		s.unsubscribe <- c
 		return "", f, nil
 	}
 }
@@ -126,6 +141,50 @@ func (s NSQ) Stop() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+type nodesResponse struct {
+	Status_code int
+	Status_txt  string
+	Data        producers
+}
+type producers struct {
+	Producers []producer
+}
+type producer struct {
+	Topics            []string
+	Tombstones        []string
+	Version           string
+	Http_port         int
+	Tcp_port          int
+	Broadcast_address string
+	Hostname          string
+	Remote_address    string
+}
+
+func getRandomNode(lookupdAddr string) (string, error) {
+	resp, err := http.Get(lookupdAddr + "/nodes")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var n nodesResponse
+	err = json.Unmarshal(body, &n)
+	if err != nil {
+		return "", err
+	}
+	if n.Status_code != 200 {
+		return "", errors.New("could not get list of nsqd nodes")
+	}
+	nProducers := len(n.Data.Producers)
+	if nProducers <= 0 {
+		log.Fatal(errors.New("found no NSQ daemons"))
+	}
+	return n.Data.Producers[rand.Intn(nProducers)].Broadcast_address, nil
 }
 
 func NSQConnect() Spec {
