@@ -80,7 +80,7 @@ func (s NSQ) Serve() {
 			prodAddr, err := getRandomNode(conf.lookupAddr)
 			if err != nil {
 				select {
-				case conf.errChan <- NewError("NSQ connect failed with:" + err.Error()):
+				case conf.errChan <- NewError("getRandomNode failed with:" + err.Error()):
 				default:
 				}
 			}
@@ -88,7 +88,7 @@ func (s NSQ) Serve() {
 			writer, err = nsq.NewProducer(prodAddr, conf.conf)
 			if err != nil {
 				select {
-				case conf.errChan <- NewError("NSQ connect failed with:" + err.Error()):
+				case conf.errChan <- NewError("creating a new producer failed with:" + err.Error()):
 				default:
 				}
 			}
@@ -160,14 +160,8 @@ type producers struct {
 	Producers []producer
 }
 type producer struct {
-	Topics            []string
-	Tombstones        []string
-	Version           string
-	Http_port         int
 	Tcp_port          int
 	Broadcast_address string
-	Hostname          string
-	Remote_address    string
 }
 
 func getRandomNode(lookupdAddr string) (string, error) {
