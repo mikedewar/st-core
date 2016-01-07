@@ -64,7 +64,9 @@ func (s NSQ) Serve() {
 	for {
 		select {
 		case conf := <-s.connectChan:
+			log.Println("1", reader)
 			reader, err = nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
+			log.Println("2", reader)
 			if err != nil {
 				select {
 				case conf.errChan <- NewError("NSQ failed to create Consumer with error:" + err.Error()):
