@@ -14,7 +14,7 @@ import (
 
 func NSQInterface() SourceSpec {
 	return SourceSpec{
-		Name: "NSQClient",
+		Name: "NSQ",
 		Type: NSQCLIENT,
 		New:  NewNSQ,
 	}
@@ -60,6 +60,7 @@ func NewNSQ() Source {
 func (s NSQ) Serve() {
 	var reader *nsq.Consumer
 	var writer *nsq.Producer
+	var err error
 	for {
 		select {
 		case conf := <-s.connectChan:
@@ -77,6 +78,7 @@ func (s NSQ) Serve() {
 				case conf.errChan <- NewError("NSQ connect failed with:" + err.Error()):
 				default:
 				}
+				continue
 			}
 			prodAddr, err := getRandomNode(conf.lookupAddr)
 			if err != nil {
@@ -84,6 +86,7 @@ func (s NSQ) Serve() {
 				case conf.errChan <- NewError("getRandomNode failed with:" + err.Error()):
 				default:
 				}
+				continue
 			}
 			log.Println("using", prodAddr, "to publish to")
 			writer, err = nsq.NewProducer(prodAddr, conf.conf)
@@ -92,6 +95,7 @@ func (s NSQ) Serve() {
 				case conf.errChan <- NewError("creating a new producer failed with:" + err.Error()):
 				default:
 				}
+				continue
 			}
 			s.topic = conf.topic
 		case msg := <-s.sendChan:
@@ -105,12 +109,19 @@ func (s NSQ) Serve() {
 			} else {
 				msg.errChan <- nil
 			}
-		case <-s.quit:
-			reader.Stop()
-			<-reader.StopChan // this blocks until the reader is definitely dead
-			// TODO have some sort of timeout here and return with error maybe?
-			// don't forget the object coming through s.quite is an option error channel
-			writer.Stop()
+		case c := <-s.quit:
+			if reader != nil {
+				reader.Stop()
+				<-reader.StopChan // this blocks until the reader is definitely dead
+				reader = nil
+			}
+			if writer != nil {
+				// TODO have some sort of timeout here and return with error maybe?
+				// don't forget the object coming through s.quite is an option error channel
+				writer.Stop()
+				writer = nil
+			}
+			c <- nil
 		}
 	}
 }
