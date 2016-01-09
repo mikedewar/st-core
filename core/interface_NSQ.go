@@ -12,22 +12,18 @@ import (
 	"github.com/bitly/go-nsq"
 )
 
-func NSQInterface() SourceSpec {
+func NSQConsumerInterface() SourceSpec {
 	return SourceSpec{
-		Name: "NSQ",
-		Type: NSQCLIENT,
+		Name: "NSQConsumer",
+		Type: NSQCONSUMER
 		New:  NewNSQ,
 	}
 }
 
-type NSQ struct {
+type NSQConsumer struct {
 	connectChan chan NSQConf
 	topic       string
-	sendChan    chan NSQMsg
 	fromNSQ     chan string
-	subscribe   chan chan string
-	unsubscribe chan chan string
-	subscribers map[chan string]struct{}
 	quit        chan chan error
 }
 
@@ -44,29 +40,25 @@ type NSQMsg struct {
 	errChan chan *stcoreError
 }
 
-func (s NSQ) GetType() SourceType {
-	return NSQCLIENT
+func (s NSQConsumer) GetType() SourceType {
+	return NSQCONSUMER
 }
 
 func NewNSQ() Source {
 	return &NSQ{
 		quit:        make(chan chan error),
 		connectChan: make(chan NSQConf),
-		sendChan:    make(chan NSQMsg),
 		fromNSQ:     make(chan string),
 	}
 }
 
-func (s NSQ) Serve() {
+func (s NSQConsumer) Serve() {
 	var reader *nsq.Consumer
-	var writer *nsq.Producer
 	var err error
 	for {
 		select {
 		case conf := <-s.connectChan:
-			log.Println("1", reader)
 			reader, err = nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
-			log.Println("2", reader)
 			if err != nil {
 				select {
 				case conf.errChan <- NewError("NSQ failed to create Consumer with error:" + err.Error()):
@@ -83,59 +75,24 @@ func (s NSQ) Serve() {
 				}
 				continue
 			}
-			prodAddr, err := getRandomNode(conf.lookupAddr)
-			if err != nil {
-				select {
-				case conf.errChan <- NewError("getRandomNode failed with:" + err.Error()):
-				default:
-				}
-				continue
-			}
-			log.Println("using", prodAddr, "to publish to")
-			writer, err = nsq.NewProducer(prodAddr, conf.conf)
-			if err != nil {
-				select {
-				case conf.errChan <- NewError("creating a new producer failed with:" + err.Error()):
-				default:
-				}
-				continue
-			}
-			s.topic = conf.topic
-		case msg := <-s.sendChan:
-			if writer == nil {
-				msg.errChan <- NewError("NSQ is not connected; cannot send.")
-				continue
-			}
-			err := writer.Publish(s.topic, []byte(msg.msg))
-			if err != nil {
-				msg.errChan <- NewError("NSQ publish failed with: " + err.Error())
-			} else {
-				msg.errChan <- nil
-			}
 		case c := <-s.quit:
 			if reader != nil {
 				reader.Stop()
 				<-reader.StopChan // this blocks until the reader is definitely dead
 				reader = nil
 			}
-			if writer != nil {
-				// TODO have some sort of timeout here and return with error maybe?
-				// don't forget the object coming through s.quite is an option error channel
-				writer.Stop()
-				writer = nil
-			}
 			c <- nil
 		}
 	}
 }
 
-func (s NSQ) HandleMessage(message *nsq.Message) error {
+func (s NSQConsumer) HandleMessage(message *nsq.Message) error {
 	// this blocks until ReceiveMessage is called
 	s.fromNSQ <- string(message.Body)
 	return nil
 }
 
-func (s NSQ) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
+func (s NSQConsumer) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
 	// receives message
 	select {
 	case msg, ok := <-s.fromNSQ:
@@ -148,15 +105,7 @@ func (s NSQ) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
 	}
 }
 
-func (s NSQ) SendMessage(msg string) *stcoreError {
-	// send message
-	m := NSQMsg{msg, make(chan *stcoreError)}
-	go func() { s.sendChan <- m }()
-	err := <-m.errChan
-	return err
-}
-
-func (s NSQ) Stop() {
+func (s NSQConsumer) Stop() {
 	m := make(chan error)
 	s.quit <- m
 	// block until closed
@@ -166,51 +115,12 @@ func (s NSQ) Stop() {
 	}
 }
 
-type nodesResponse struct {
-	Status_code int
-	Status_txt  string
-	Data        producers
-}
-type producers struct {
-	Producers []producer
-}
-type producer struct {
-	Tcp_port          int
-	Broadcast_address string
-}
-
-func getRandomNode(lookupdAddr string) (string, error) {
-	resp, err := http.Get("http://" + lookupdAddr + "/nodes")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	var n nodesResponse
-	err = json.Unmarshal(body, &n)
-	if err != nil {
-		return "", err
-	}
-	if n.Status_code != 200 {
-		return "", errors.New("could not get list of nsqd nodes")
-	}
-	nProducers := len(n.Data.Producers)
-	if nProducers <= 0 {
-		log.Fatal(errors.New("found no NSQ daemons"))
-	}
-	pr := n.Data.Producers[rand.Intn(nProducers)]
-	return pr.Broadcast_address + ":" + strconv.Itoa(pr.Tcp_port), nil
-}
-
-func NSQConnect() Spec {
+func NSQConsumerConnect() Spec {
 	return Spec{
-		Name:    "NSQConnect",
+		Name:    "NSQConsumerConnect",
 		Outputs: []Pin{Pin{"connected", BOOLEAN}},
 		Inputs:  []Pin{Pin{"topic", STRING}, Pin{"channel", STRING}, Pin{"lookupAddr", STRING}, Pin{"maxInFlight", NUMBER}},
-		Source:  NSQCLIENT,
+		Source:  NSQCONSUMER,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
 
 			topic, ok := in[0].(string)
@@ -274,13 +184,13 @@ func NSQConnect() Spec {
 // NSQRecieve receives messages from the NSQ system.
 //
 // OutPin 0: received message
-func NSQReceive() Spec {
+func NSQConsumerReceive() Spec {
 	return Spec{
-		Name: "NSQReceive",
+		Name: "NSQConsumerReceive",
 		Outputs: []Pin{
 			Pin{"out", STRING},
 		},
-		Source: NSQCLIENT,
+		Source: NSQCONSUMER,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
 			nsq := s.(*NSQ)
 			msg, f, err := nsq.ReceiveMessage(i)
@@ -292,37 +202,6 @@ func NSQReceive() Spec {
 				return f
 			}
 			out[0] = string(msg)
-			return nil
-		},
-	}
-}
-
-func NSQSend() Spec {
-	return Spec{
-		Name: "NSQSend",
-		Inputs: []Pin{
-			Pin{"msg", STRING},
-		},
-		Outputs: []Pin{
-			Pin{"sent", BOOLEAN},
-		},
-		Source: NSQCLIENT,
-		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
-			nsq := s.(*NSQ)
-
-			msg, ok := in[0].(string)
-			if !ok {
-				out[0] = NewError("NSQSend requires string msg")
-				return nil
-			}
-
-			err := nsq.SendMessage(msg)
-			if err != nil {
-				out[0] = err
-				return nil
-			}
-
-			out[0] = true
 			return nil
 		},
 	}
