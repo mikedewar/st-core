@@ -1,13 +1,8 @@
 package core
 
 import (
-	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"log"
-	"math/rand"
-	"net/http"
-	"strconv"
 
 	"github.com/bitly/go-nsq"
 )
@@ -15,8 +10,8 @@ import (
 func NSQConsumerInterface() SourceSpec {
 	return SourceSpec{
 		Name: "NSQConsumer",
-		Type: NSQCONSUMER
-		New:  NewNSQ,
+		Type: NSQCONSUMER,
+		New:  NewNSQConsumer,
 	}
 }
 
@@ -44,8 +39,8 @@ func (s NSQConsumer) GetType() SourceType {
 	return NSQCONSUMER
 }
 
-func NewNSQ() Source {
-	return &NSQ{
+func NewNSQConsumer() Source {
+	return &NSQConsumer{
 		quit:        make(chan chan error),
 		connectChan: make(chan NSQConf),
 		fromNSQ:     make(chan string),
@@ -58,6 +53,7 @@ func (s NSQConsumer) Serve() {
 	for {
 		select {
 		case conf := <-s.connectChan:
+			log.Println("*** NSQ CONNECTING ***")
 			reader, err = nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
 			if err != nil {
 				select {
@@ -122,6 +118,7 @@ func NSQConsumerConnect() Spec {
 		Inputs:  []Pin{Pin{"topic", STRING}, Pin{"channel", STRING}, Pin{"lookupAddr", STRING}, Pin{"maxInFlight", NUMBER}},
 		Source:  NSQCONSUMER,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
+			log.Println("** HELLO WORLD **")
 
 			topic, ok := in[0].(string)
 			if !ok {
@@ -147,7 +144,7 @@ func NSQConsumerConnect() Spec {
 			conf := nsq.NewConfig()
 			conf.MaxInFlight = int(maxInFlight)
 
-			nsq, ok := s.(*NSQ)
+			nsq, ok := s.(*NSQConsumer)
 			if !ok {
 				log.Fatal("could not assert source is NSQ")
 			}
@@ -171,6 +168,7 @@ func NSQConsumerConnect() Spec {
 					out[0] = err
 					return nil
 				}
+				log.Println("*** NSQ IS CONNECTED ***")
 				out[0] = true
 				return nil
 			case f := <-i:
@@ -192,7 +190,7 @@ func NSQConsumerReceive() Spec {
 		},
 		Source: NSQCONSUMER,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
-			nsq := s.(*NSQ)
+			nsq := s.(*NSQConsumer)
 			msg, f, err := nsq.ReceiveMessage(i)
 			if err != nil {
 				out[0] = err
