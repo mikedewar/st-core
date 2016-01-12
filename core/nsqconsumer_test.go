@@ -79,7 +79,7 @@ func TestNSQConsumer(t *testing.T) {
 
 	library := GetLibrary()
 	blocks := map[string]*Block{
-		"sink":    NewBlock(library["sink"]),
+		"log":     NewBlock(library["log"]),
 		"connect": NewBlock(library["NSQConsumerConnect"]),
 		"recv":    NewBlock(library["NSQConsumerReceive"]),
 	}
@@ -100,7 +100,7 @@ func TestNSQConsumer(t *testing.T) {
 	}
 
 	// sink connect
-	sinkIn, err := blocks["sink"].GetInput(0)
+	sinkIn, err := blocks["log"].GetInput(0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestNSQConsumer(t *testing.T) {
 	// connect the NSQ, relying on the fact that we haven't sunk the connect to only connect once
 	topic := InputValue{topicName}
 	channel := InputValue{"testChannel"}
-	maxInFlight := InputValue{1}
+	maxInFlight := InputValue{1.0}
 	err = blocks["connect"].SetInput(0, &topic)
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +142,10 @@ func TestNSQConsumer(t *testing.T) {
 
 	// block on the receive's out chan for a moment
 	select {
-	case <-out:
+	case m := <-out:
+		if m != "test message" {
+			t.Fatal("received incorrect message")
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("receive from NSQ timed out")
 	}

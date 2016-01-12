@@ -53,7 +53,6 @@ func (s NSQConsumer) Serve() {
 	for {
 		select {
 		case conf := <-s.connectChan:
-			log.Println("*** NSQ CONNECTING ***")
 			reader, err = nsq.NewConsumer(conf.topic, conf.channel, conf.conf)
 			if err != nil {
 				select {
@@ -118,7 +117,6 @@ func NSQConsumerConnect() Spec {
 		Inputs:  []Pin{Pin{"topic", STRING}, Pin{"channel", STRING}, Pin{"lookupAddr", STRING}, Pin{"maxInFlight", NUMBER}},
 		Source:  NSQCONSUMER,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
-			log.Println("** HELLO WORLD **")
 
 			topic, ok := in[0].(string)
 			if !ok {
@@ -137,7 +135,7 @@ func NSQConsumerConnect() Spec {
 			}
 			maxInFlight, ok := in[3].(float64)
 			if !ok {
-				out[0] = NewError("NSQConnect requries number lookupAddr")
+				out[0] = NewError("NSQConnect requries number maxInFlight")
 				return nil
 			}
 
@@ -168,7 +166,6 @@ func NSQConsumerConnect() Spec {
 					out[0] = err
 					return nil
 				}
-				log.Println("*** NSQ IS CONNECTED ***")
 				out[0] = true
 				return nil
 			case f := <-i:
