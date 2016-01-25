@@ -14,6 +14,7 @@ const (
 	PRIORITY
 	NSQCONSUMER
 	WSCLIENT
+	UDPCLIENT
 )
 
 // JSONType defines the possible types that variables in core can take
