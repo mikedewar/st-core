@@ -2,6 +2,8 @@ package core
 
 import (
 	"errors"
+	"log"
+	"sync"
 	"time"
 )
 
@@ -318,9 +320,12 @@ func (b *Block) process() Interrupt {
 	// - we don't need an shared state
 	// - we have an external shared state and it has been attached
 
-	// TODO there is a potential generalisation here for sources that don't need to be locked
-	if b.sourceType != NONE && b.sourceType != SERVER {
-		b.routing.Source.Lock()
+	// if we have a store, lock it
+	var store sync.Locker
+	var ok bool
+	if store, ok = b.routing.Source.(sync.Locker); ok {
+		log.Println("locking")
+		store.Lock()
 	}
 
 	// run the kernel
@@ -330,15 +335,15 @@ func (b *Block) process() Interrupt {
 		b.routing.Source,
 		b.routing.InterruptChan)
 
-	if interrupt != nil {
-		if b.sourceType != NONE && b.sourceType != SERVER {
-			b.routing.Source.Unlock()
-		}
-		return interrupt
+	// unlock the store if necessary
+	if store != nil {
+		log.Println("unlocking")
+		store.Unlock()
 	}
 
-	if b.sourceType != NONE && b.sourceType != SERVER {
-		b.routing.Source.Unlock()
+	// if an interrupt was receieved, return it
+	if interrupt != nil {
+		return interrupt
 	}
 
 	b.state.Processed = true
