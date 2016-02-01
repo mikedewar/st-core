@@ -14,6 +14,7 @@ const (
 	PRIORITY
 	NSQCONSUMER
 	WSCLIENT
+	STDIN
 )
 
 // JSONType defines the possible types that variables in core can take
@@ -82,6 +83,8 @@ func (s *SourceType) UnmarshalJSON(data []byte) error {
 		*s = SourceType(NSQCONSUMER)
 	case `"wsClient"`:
 		*s = SourceType(WSCLIENT)
+	case `"stdin"`:
+		*s = SourceType(STDIN)
 	case `"list"`:
 		*s = SourceType(LIST)
 	case `"value"`:
@@ -104,6 +107,8 @@ func (s SourceType) MarshalJSON() ([]byte, error) {
 		return []byte(`"NSQ"`), nil
 	case WSCLIENT:
 		return []byte(`"wsClient"`), nil
+	case STDIN:
+		return []byte(`"stdin"`), nil
 	case LIST:
 		return []byte(`"list"`), nil
 	case VALUE_PRIMITIVE:
