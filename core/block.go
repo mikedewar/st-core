@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"time"
 )
@@ -323,7 +322,6 @@ func (b *Block) process() Interrupt {
 	var store sync.Locker
 	var ok bool
 	if store, ok = b.routing.Source.(sync.Locker); ok {
-		log.Println("locking")
 		store.Lock()
 	}
 
@@ -336,7 +334,6 @@ func (b *Block) process() Interrupt {
 
 	// unlock the store if necessary
 	if store != nil {
-		log.Println("unlocking")
 		store.Unlock()
 	}
 
