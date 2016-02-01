@@ -65,7 +65,7 @@ func (stdin Stdin) ReceiveMessage(i chan Interrupt) (string, Interrupt, error) {
 
 func StdinReceive() Spec {
 	return Spec{
-		Name:    "StdinReceive",
+		Name:    "stdinReceive",
 		Outputs: []Pin{Pin{"msg", STRING}},
 		Source:  STDIN,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
