@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/nytlabs/st-core/server"
@@ -19,17 +17,6 @@ var (
 )
 
 func main() {
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc,
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-	go func() {
-		s := <-sigc
-		log.Println(s)
-		os.Exit(0)
-	}()
 
 	flag.Parse()
 
