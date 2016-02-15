@@ -148,6 +148,10 @@ func GetLibrary() map[string]Spec {
 
 		// stdin
 		StdinReceive(),
+
+		// OSC clinet
+		OSCClientConnect(),
+		OSCClientSend(),
 	}
 
 	library := make(map[string]Spec)

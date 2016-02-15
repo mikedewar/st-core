@@ -9,6 +9,7 @@ func GetSources() map[string]SourceSpec {
 		ListStore(),
 		WebsocketClient(),
 		StdinInterface(),
+		OSCClient(),
 	}
 
 	library := make(map[string]SourceSpec)

@@ -15,6 +15,7 @@ const (
 	NSQCONSUMER
 	WSCLIENT
 	STDIN
+	OSCCLIENT
 )
 
 // JSONType defines the possible types that variables in core can take
@@ -91,6 +92,8 @@ func (s *SourceType) UnmarshalJSON(data []byte) error {
 		*s = SourceType(PRIORITY)
 	case `"stdin"`:
 		*s = SourceType(STDIN)
+	case `"OSCClient"`:
+		*s = SourceType(OSCCLIENT)
 	default:
 		return errors.New("Error unmarshalling source type")
 	}
@@ -115,6 +118,8 @@ func (s SourceType) MarshalJSON() ([]byte, error) {
 		return []byte(`"priority-queue"`), nil
 	case STDIN:
 		return []byte(`"stdin"`), nil
+	case OSCCLIENT:
+		return []byte(`"OSCClient"`), nil
 	}
 	return nil, errors.New("Unknown source type")
 }
