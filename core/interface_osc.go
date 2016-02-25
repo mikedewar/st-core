@@ -58,7 +58,6 @@ func (s *OSC) Serve() {
 			m.err <- client.Send(msg)
 		}
 	}
-
 }
 
 func (OSC *OSC) Stop() {
@@ -98,7 +97,7 @@ func OSCClientConnect() Spec {
 func OSCClientSend() Spec {
 	return Spec{
 		Name:    "OSCClientSend",
-		Inputs:  []Pin{Pin{"address", STRING}, Pin{"arugment", ANY}},
+		Inputs:  []Pin{Pin{"address", STRING}, Pin{"argument", ANY}},
 		Outputs: []Pin{Pin{"sent", BOOLEAN}},
 		Source:  OSCCLIENT,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
