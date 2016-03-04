@@ -9,8 +9,9 @@ import (
 type queue []*PQMessage
 
 type PriorityQueue struct {
-	queue *lane.PQueue
-	sync.Mutex
+	queue    *lane.PQueue
+	mutex    sync.Mutex
+	isLocked bool
 }
 
 type PQMessage struct {
@@ -36,6 +37,18 @@ func NewPriorityQueue() Source {
 
 func (pq PriorityQueue) GetType() SourceType {
 	return PRIORITY
+}
+
+func (pq PriorityQueue) Lock() {
+	pq.mutex.Lock()
+	pq.isLocked = true
+}
+
+func (pq PriorityQueue) Unlock() {
+	if pq.isLocked {
+		pq.mutex.Unlock()
+	}
+	pq.isLocked = false
 }
 
 func pqPush() Spec {

@@ -1,6 +1,9 @@
 package core
 
-import "sync"
+import (
+	"log"
+	"sync"
+)
 
 func ValueStore() SourceSpec {
 	return SourceSpec{
@@ -11,15 +14,17 @@ func ValueStore() SourceSpec {
 }
 
 type Value struct {
-	value interface{}
-	quit  chan bool
-	sync.Mutex
+	value    interface{}
+	quit     chan bool
+	isLocked bool
+	mutex    sync.Mutex
 }
 
 func NewValue() Source {
 	return &Value{
-		value: nil,
-		quit:  make(chan bool),
+		value:    nil,
+		isLocked: false,
+		quit:     make(chan bool),
 	}
 }
 
@@ -34,6 +39,18 @@ func (v *Value) Get() interface{} {
 func (v *Value) Set(nv interface{}) error {
 	v.value = nv
 	return nil
+}
+
+func (v *Value) Lock() {
+	v.mutex.Lock()
+	v.isLocked = true
+}
+
+func (v *Value) Unlock() {
+	if v.isLocked {
+		v.mutex.Unlock()
+	}
+	v.isLocked = false
 }
 
 // ValueGet emits the value stored
@@ -60,16 +77,74 @@ func ValueSet() Spec {
 	return Spec{
 		Name: "valueSet",
 		Inputs: []Pin{
-			Pin{"value", ANY},
+			Pin{"newValue", ANY},
 		},
 		Outputs: []Pin{
-			Pin{"out", ANY},
+			Pin{"out", BOOLEAN},
 		},
 		Source: VALUE_PRIMITIVE,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
 			v := s.(*Value)
 			v.value = in[0]
 			out[0] = true
+			return nil
+		},
+	}
+}
+
+// ValueLock locks a value, emitting a semaphore
+func Lock() Spec {
+	return Spec{
+		Name: "lock",
+		Inputs: []Pin{
+			Pin{"trigger", ANY},
+		},
+		Outputs: []Pin{
+			Pin{"locked", BOOLEAN},
+		},
+		Source: STORE,
+		OnReset: func(in, out, internal MessageMap, s Source) {
+			v, ok := s.(Store)
+			if !ok {
+				// this can happen during reset, and s is null. just ignore..
+				return
+			}
+			v.Unlock()
+		},
+		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
+			v := s.(*Value)
+			lockChan := make(chan bool)
+			go func() {
+				log.Println("getting lock")
+				v.Lock()
+				log.Println("got lock")
+				lockChan <- true
+			}()
+			select {
+			case out[0] = <-lockChan:
+				return nil
+			case f := <-i:
+				log.Println("waiting on lock interrupted!")
+				return f
+			}
+		},
+	}
+}
+
+// Unlock releases a lock on a store
+func Unlock() Spec {
+	return Spec{
+		Name: "unlock",
+		Inputs: []Pin{
+			Pin{"trigger", ANY},
+		},
+		Outputs: []Pin{},
+		Source:  STORE,
+		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
+			v := s.(Store)
+			log.Println("unlocking")
+			v.Unlock()
+			log.Println("unlocked")
 			return nil
 		},
 	}

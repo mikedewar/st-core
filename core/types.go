@@ -15,6 +15,7 @@ const (
 	NSQCONSUMER
 	WSCLIENT
 	STDIN
+	STORE // used for generic store blocks like Lock and Unlock
 )
 
 // JSONType defines the possible types that variables in core can take
@@ -28,7 +29,6 @@ const (
 	BOOLEAN
 	NULL
 	ANY
-	WRITER
 	ERROR
 )
 
@@ -91,6 +91,8 @@ func (s *SourceType) UnmarshalJSON(data []byte) error {
 		*s = SourceType(PRIORITY)
 	case `"stdin"`:
 		*s = SourceType(STDIN)
+	case `"store"`:
+		*s = SourceType(STORE)
 	default:
 		return errors.New("Error unmarshalling source type")
 	}
@@ -115,6 +117,8 @@ func (s SourceType) MarshalJSON() ([]byte, error) {
 		return []byte(`"priority-queue"`), nil
 	case STDIN:
 		return []byte(`"stdin"`), nil
+	case STORE:
+		return []byte(`"store"`), nil
 	}
 	return nil, errors.New("Unknown source type")
 }
@@ -130,6 +134,9 @@ type Interrupt func() bool
 // the outbound MessageMap, and can be interrupted on its Interrupt channel.
 type Kernel func(MessageMap, MessageMap, MessageMap, Source, chan Interrupt) Interrupt
 
+// OnReset allows the block designer to do any special cleanup necessary before the block is reset
+type OnReset func(MessageMap, MessageMap, MessageMap, Source)
+
 // A Pin contains information about a particular input or output
 type Pin struct {
 	Name string
@@ -144,6 +151,7 @@ type Spec struct {
 	Outputs  []Pin
 	Source   SourceType
 	Kernel   Kernel
+	OnReset  OnReset
 }
 
 // Input is an inbound route to a block. A Input holds the channel that allows Messages
@@ -233,6 +241,7 @@ type Block struct {
 	state      BlockState
 	routing    BlockRouting
 	kernel     Kernel
+	onReset    OnReset
 	sourceType SourceType
 	Monitor    chan MonitorMessage
 	lastCrank  time.Time

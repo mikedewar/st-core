@@ -102,6 +102,10 @@ func GetLibrary() map[string]Spec {
 		ValueGet(),
 		ValueSet(),
 
+		// general store blocks
+		Lock(),
+		Unlock(),
+
 		// list
 		listGet(),
 		listSet(),

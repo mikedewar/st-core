@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"sync"
 	"time"
 )
 
@@ -42,6 +41,7 @@ func NewBlock(s Spec) *Block {
 			InterruptChan: make(chan Interrupt),
 		},
 		kernel:     s.Kernel,
+		onReset:    s.OnReset,
 		sourceType: s.Source,
 		Monitor:    make(chan MonitorMessage, 1),
 		lastCrank:  time.Now(),
@@ -180,9 +180,15 @@ func (b *Block) GetSource() Source {
 func (b *Block) SetSource(s Source) error {
 	returnVal := make(chan error, 1)
 	b.routing.InterruptChan <- func() bool {
-		if s != nil && s.GetType() != b.sourceType {
-			returnVal <- errors.New("invalid source type for this block")
-			return true
+		if s != nil {
+
+			//TODO NOT DONE ALI WOKE
+			if _, ok := s.(Store); b.sourceType == STORE && ok {
+			}
+			if s.GetType() != b.sourceType {
+				returnVal <- errors.New("invalid source type for this block")
+				return true
+			}
 		}
 		b.routing.Source = s
 		returnVal <- nil
@@ -234,8 +240,15 @@ func (b *Block) Disconnect(id RouteIndex, c Connection) error {
 }
 
 func (b *Block) Reset() {
-	b.crank()
+	// call b.onReset() in case the block needs to do anything special
+	if b.onReset != nil {
+		b.onReset(b.state.inputValues,
+			b.state.outputValues,
+			b.state.internalValues,
+			b.routing.Source)
+	}
 
+	b.crank()
 	// reset block's state as well. currently this only applies to a handful of
 	// blocks, like GET and first.
 	for k, _ := range b.state.internalValues {
@@ -306,7 +319,6 @@ func (b *Block) process() Interrupt {
 	}
 
 	// block until connected to source if necessary
-
 	if b.sourceType != NONE && b.routing.Source == nil {
 		select {
 		case f := <-b.routing.InterruptChan:
@@ -318,24 +330,12 @@ func (b *Block) process() Interrupt {
 	// - we don't need an shared state
 	// - we have an external shared state and it has been attached
 
-	// if we have a store, lock it
-	var store sync.Locker
-	var ok bool
-	if store, ok = b.routing.Source.(sync.Locker); ok {
-		store.Lock()
-	}
-
 	// run the kernel
 	interrupt := b.kernel(b.state.inputValues,
 		b.state.outputValues,
 		b.state.internalValues,
 		b.routing.Source,
 		b.routing.InterruptChan)
-
-	// unlock the store if necessary
-	if store != nil {
-		store.Unlock()
-	}
 
 	// if an interrupt was receieved, return it
 	if interrupt != nil {
