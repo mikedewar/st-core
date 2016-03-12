@@ -112,19 +112,19 @@ func Lock() Spec {
 			v.Unlock()
 		},
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
-			v := s.(*Value)
+			v, ok := s.(Store)
+			if !ok {
+				log.Fatal("could not assert connected source to Store")
+			}
 			lockChan := make(chan bool)
 			go func() {
-				log.Println("getting lock")
 				v.Lock()
-				log.Println("got lock")
 				lockChan <- true
 			}()
 			select {
 			case out[0] = <-lockChan:
 				return nil
 			case f := <-i:
-				log.Println("waiting on lock interrupted!")
 				return f
 			}
 		},
@@ -142,9 +142,7 @@ func Unlock() Spec {
 		Source:  STORE,
 		Kernel: func(in, out, internal MessageMap, s Source, i chan Interrupt) Interrupt {
 			v := s.(Store)
-			log.Println("unlocking")
 			v.Unlock()
-			log.Println("unlocked")
 			return nil
 		},
 	}

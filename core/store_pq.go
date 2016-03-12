@@ -39,16 +39,25 @@ func (pq PriorityQueue) GetType() SourceType {
 	return PRIORITY
 }
 
-func (pq PriorityQueue) Lock() {
+func (pq *PriorityQueue) Lock() {
 	pq.mutex.Lock()
 	pq.isLocked = true
 }
 
-func (pq PriorityQueue) Unlock() {
+func (pq *PriorityQueue) Unlock() {
 	if pq.isLocked {
 		pq.mutex.Unlock()
 	}
 	pq.isLocked = false
+}
+
+func (pq PriorityQueue) Get() interface{} {
+	return pq.queue
+}
+
+func (pq *PriorityQueue) Set(a interface{}) error {
+	//TODO anyting
+	return nil
 }
 
 func pqPush() Spec {
